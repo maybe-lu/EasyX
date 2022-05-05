@@ -1,0 +1,66 @@
+#include <graphics.h>
+#include <stdlib.h>
+#include <conio.h>
+
+void test11() {
+	initgraph(640, 480);
+	setbkcolor(WHITE);
+	cleardevice();
+
+	//画圆
+	IMAGE img;
+	BeginBatchDraw();
+
+	setfillcolor(BROWN);
+	int x = 25, y = 25;
+	fillcircle(x, y, 10);
+
+	getimage(&img, 15, 15, 20,20);
+	
+	setbkcolor(WHITE);
+	cleardevice();
+	putimage(x, y, &img);
+	FlushBatchDraw();
+
+	ExMessage m;		// 定义消息变量
+	bool isEsc = false;
+
+	while (!isEsc)
+	{
+		// 获取一条鼠标
+		m = getmessage(EM_MOUSE);
+
+		switch (m.message)
+		{
+		case WM_LBUTTONDOWN:
+			while (x != m.x || y != m.y) {
+				setbkcolor(WHITE);
+				cleardevice();
+				putimage(x, y, &img);
+				FlushBatchDraw();
+				Sleep(10);
+				
+				if (x < m.x)	x++;
+				else if (x > m.x)	x--;
+				else x = x;
+
+				if (y < m.y)	y++;
+				else if (y > m.y)	y--;
+				else y=y;
+			}
+			break;
+
+		case WM_RBUTTONDOWN:
+			isEsc = true;
+			break;
+		}
+	}
+	EndBatchDraw();
+}
+int main()
+{
+	//initgraph(640, 480);
+	test11();
+	//_getch();
+	closegraph();
+}
