@@ -1,0 +1,1309 @@
+项目copy的源地址-https://codebus.cn/gary/bejeweled
+是酷酷的宝石迷阵
+vs2020配置项目时要注意
+  1、字符集要使用多字节字符集
+  2、C/C++ -> 语言 -> 符合模式要改为否
+
+-----Bejeweled.h文件--------------------------------------------
+# include <math.h>
+# include <graphics.h>
+# include <string>
+# include <time.h>
+# include <stdlib.h>
+
+#ifndef CIRCLE_H
+#define CIRCLE_H
+
+static HWND hOut;					// 画布
+
+// 格子结构体
+struct Node1
+{
+	int i, j, k;					// 矩形格子二维坐标，六边形格子三维坐标
+	int boxnum;						// 格子编号
+	int posx, posy;					// 物理坐标
+	int type;						// 格子上棋子类型
+};
+
+// 临时存放格子
+struct Node2
+{
+	int num;						// 编号
+	int boxnum;						// 存放正式格子编号
+};
+
+// 按钮
+struct Node3
+{
+	int posx1, posy1, posx2, posy2;	// 坐标
+	double r;						// 圆按钮半径
+	LPTSTR text;					// 按钮文本
+	int type;						// 按钮激活状态
+};
+
+// 交换对
+struct Node4
+{
+	int boxnum1;					// 交换对格子编号 1
+	int boxnum2;					// 交换对格子编号 2
+	int type;						// 交换对状态
+};
+
+class game
+{
+public:
+	int carry_main();												// 游戏进程主循函数
+	void carry_prepare();											// 准备进程主循函数
+	void carry_start();											// 开始进程主循函数
+
+	void draw_button();											// 按钮绘制函数
+	void draw_piece(int posx, int posy, int type);					// 棋子绘制函数
+	void draw_word(double size, int posx, int posy, LPTSTR text);	// 标题绘制函数
+	void draw_scene_start();										// 开始进程绘制函数
+	void draw_scene_prepare();										// 准备进程绘制函数
+
+	int check_hexagon(int x, int y);								// 六边形判断函数
+	int check_square(int x, int y);								// 矩形判断函数
+	void check_bomb();												// 炸弹判断函数
+	
+	void creact_piece(int boxnum);									// 生成棋子函数
+	
+	void initialization_prepare();									// 准备进程初始化函数	
+	void initialization_start();									// 开始进程初始化函数
+
+	Node1 box[1000];												// 格子，预制
+	Node2 eat[500];													// 临时存放格子
+	Node3 boxm[20];													// 按钮，预制二十个
+	Node4 box_change[100];											// 交换对，预制一百个
+	
+	int num_button;													// 按钮数量
+	
+	int exit_carry;													// 主进程主循函数控制参数
+	int exit_start;													// 开始进程主循函数控制参数
+	
+	int mod_shape;													// 棋盘模式参数，两种
+	int mod_start;													// 游戏模式参数，三种
+	
+	int size_shape;													// 棋盘尺寸
+	
+	int flag;														// 临时存放格子数量参数
+	
+	int selected_boxnum;											// 选择格子参数
+	int selected_or_not;											// 是否选择参数
+	
+	int start_endtime;												// 结束时间
+	
+	int start_point;												// 分数
+	
+	wchar_t c[10];													// 绘制棋子参数
+	COLORREF color1[10], color2[10];									// 绘制棋子参数
+	
+	clock_t start_t1, start_t2;										// 时间参数
+};
+
+#endif
+
+
+-------------------Bejeweled.cpp--------------------------------
+#include "Bejeweled.h"
+
+// 窗口初始化
+void initialization()
+{
+	// 窗口定义，整个程序仅定义一次
+	hOut = initgraph(601, 501);
+	// 窗口标题
+	SetWindowText(hOut, _T("消消乐"));
+}
+
+// 总进程主循函数
+void carry()
+{
+	// 总进程参数初始化
+	int exit_carry = 0;
+	// 进程控制
+	BeginBatchDraw();
+	// 创建游戏类对象
+	game G;
+	// 游戏进程
+	while (exit_carry == 0)
+	{
+		// 执行游戏总进程，并接收游戏进程结束时返回值
+		// 准备进程时，点击退出按钮结束返回 1
+		// 开始进程时，点击返回按钮结束返回 0
+		exit_carry = G.carry_main();
+	}
+	EndBatchDraw();
+	// 关闭窗口
+	closegraph();
+}
+
+// 主函数
+int main(void)
+{
+	// 初始化
+	initialization();
+	// 总进程主循函数
+	carry();
+	return 0;
+}
+
+// 游戏进程主循函数
+int game::carry_main()
+{
+	// 游戏进程参数初始化
+	exit_carry = 0;
+	// 随机种子初始化
+	srand((unsigned)time(NULL));
+	// 准备进程初始化函数
+	initialization_prepare();
+	// 准备进程主循函数
+	carry_prepare();
+	// 准备进程结束
+	// 准备进程时，点击退出按钮结束，游戏进程参数为 1
+	// 准备进程时，正常进入游戏，游戏进程参数为 0
+	if (exit_carry == 0)
+	{
+		// 开始进程初始化函数
+		initialization_start();
+		// 开始进程主循函数
+		carry_start();
+	}
+	// 开始进程结束
+	// 点击返回按钮结束，或者正常游戏结束，游戏进程参数不变
+	return exit_carry;
+}
+// 准备进程主循函数
+void game::carry_prepare()
+{
+	int i;
+	// 鼠标定义
+	ExMessage m;
+	// 准备进程控制参数初始化
+	int	exit_prepare = 0;
+	// 绘制界面
+	draw_scene_prepare();
+	// 主循开始
+	while (exit_prepare == 0)
+	{
+		if (peekmessage(&m, EM_MOUSE | EM_KEY))
+		{
+			// 左键单击判断
+			if (m.message == WM_LBUTTONDOWN)
+			{
+				// 判断是否点击了按钮，按钮状态是否为激活
+				for (i = 0; i < num_button; i++)
+				{
+					if (m.x > boxm[i].posx1 && m.y > boxm[i].posy1 && m.x < boxm[i].posx2 && m.y < boxm[i].posy2 && boxm[i].type == 0)
+					{
+						break;
+					}
+				}
+
+				// 游戏类型按钮
+				if (i == 0 || i == 1 || i == 2)
+				{
+					// 进入选择游戏模式界面
+					// 按钮激活状态变更
+					boxm[0].type = 1;
+					boxm[1].type = 1;
+					boxm[2].type = 1;
+					boxm[3].type = 1;
+					boxm[4].type = 0;
+					boxm[5].type = 0;
+					boxm[6].type = 0;
+					// 开始进程控制参数为 0，进入普通模式
+					exit_start = 0;
+					// 游戏类型参数更新
+					// 0 是宝石迷阵，1 是四消水果，2 是推拉英雄
+					mod_start = i;
+				}
+				// 退出按钮
+				else if (i == 3)
+				{
+					// 总进程控制参数置一，跳过开始进程
+					exit_carry = 1;
+					// 准备进程控制参数置一，结束主循
+					exit_prepare = 1;
+				}
+				// 棋盘类型按钮
+				else if (i == 4 || i == 5)
+				{
+					// 棋盘类型参数更新
+					// 0 是矩形，1 是六边形
+					mod_shape = i - 4;
+					// 棋盘尺寸默认为：矩形 6，六边形 5
+					if (i == 4) { size_shape = 6; }
+					else if (i == 5) { size_shape = 4; }
+					// 准备进程控制参数置一，结束主循，开始游戏
+					exit_prepare = 1;
+				}
+				// 后退按钮
+				else if (i == 6)
+				{
+					// 从主题选择界面返回
+					// 按钮激活状态变更
+					boxm[0].type = 0;
+					boxm[1].type = 1;
+					boxm[2].type = 1;
+					boxm[3].type = 0;
+					boxm[4].type = 1;
+					boxm[5].type = 1;
+					boxm[6].type = 1;
+				}
+
+				if (i < 10 && exit_prepare == 0)
+				{
+					// 点击按钮后，根据按钮激活参数，重新绘制界面
+					draw_scene_prepare();
+					FlushBatchDraw();
+				}
+			}
+		}
+	}
+}
+// 准备进程初始化函数	
+void game::initialization_prepare()
+{
+	// 按钮设置初始化
+	// 按钮数量参数初始化
+	num_button = 7;
+
+	// 按钮结构体参数初始化
+	boxm[0].posx1 = 200; boxm[0].posy1 = 120; boxm[0].posx2 = 400; boxm[0].posy2 = 180; boxm[0].text = _T("宝石迷阵"); boxm[0].type = 0;
+	boxm[1].posx1 = 200; boxm[1].posy1 = 220; boxm[1].posx2 = 400; boxm[1].posy2 = 280; boxm[1].text = _T("四消水果"); boxm[1].type = 1;
+	boxm[2].posx1 = 200; boxm[2].posy1 = 320; boxm[2].posx2 = 400; boxm[2].posy2 = 380; boxm[2].text = _T("推拉消除");	boxm[2].type = 1;
+	boxm[3].posx1 = 200; boxm[3].posy1 = 420; boxm[3].posx2 = 400; boxm[3].posy2 = 480; boxm[3].text = _T("退出");		boxm[3].type = 0;
+
+	boxm[4].posx1 = 200; boxm[4].posy1 = 120; boxm[4].posx2 = 400; boxm[4].posy2 = 180; boxm[4].text = _T("矩形");		boxm[4].type = 1;
+	boxm[5].posx1 = 200; boxm[5].posy1 = 220; boxm[5].posx2 = 400; boxm[5].posy2 = 280; boxm[5].text = _T("六边形");	boxm[5].type = 1;
+	boxm[6].posx1 = 200; boxm[6].posy1 = 420; boxm[6].posx2 = 400; boxm[6].posy2 = 480; boxm[6].text = (_T("后退"));		boxm[6].type = 1;
+
+	// 棋子初始化
+	c[1] = 0xA3;	// 空心圆
+	c[2] = 0xAA;	// 四角星
+	c[3] = 0xAB;	// 五角星
+	c[4] = 0xAC;	// 六角星
+	c[5] = 0xAD;	// 八角星
+	c[6] = 0xA9;	// 三角星
+	c[7] = 0xAE;	// 星星
+	c[8] = 0x4D;	// 炸弹
+
+	color1[1] = RGB(57, 130, 206);
+	color1[2] = RGB(210, 71, 38);
+	color1[3] = RGB(79, 161, 52);
+	color1[4] = RGB(225, 149, 52);
+	color1[5] = RGB(180, 46, 134);
+	color1[6] = RGB(151, 30, 19);
+	color1[7] = RGB(152, 39, 196);
+	color1[8] = RGB(200, 200, 200);
+
+	color2[1] = RGB(102, 189, 244);
+	color2[2] = RGB(239, 151, 63);
+	color2[3] = RGB(120, 228, 80);
+	color2[4] = RGB(248, 220, 80);
+	color2[5] = RGB(236, 139, 209);
+	color2[6] = RGB(236, 109, 53);
+	color2[7] = RGB(235, 103, 244);
+	color2[8] = BLACK;
+	// 得分
+	start_point = 0;
+
+	// 矩形交换对初始化
+	int i, j, k, h, t1, t2, a;
+	for (i = 0; i < 100; i++)
+	{
+		box_change[i].type = 0;
+	}
+	a = 0;
+	size_shape = 6;
+
+	// 二维参数定义
+	for (i = 0; i < size_shape; i++)
+	{
+		for (j = 0; j < size_shape; j++)
+		{
+			t1 = i * 10 + j;
+			for (k = i; k < size_shape; k++)
+			{
+				for (h = j; h < size_shape; h++)
+				{
+					t2 = k * 10 + h;
+					// 交换对是否成立
+					if (t1 == t2 - 1 || t1 == t2 + 1 || t1 == t2 - 10 || t1 == t2 + 10)
+					{
+						box_change[a].boxnum1 = t1;
+						box_change[a].boxnum2 = t2;
+						box_change[a].type = 1;
+						a++;
+					}
+				}
+			}
+		}
+	}
+
+}
+// 准备进程绘制函数
+void game::draw_scene_prepare()
+{
+	// 画布绘制
+	setbkcolor(WHITE);
+	cleardevice();
+	// 按钮绘制
+	draw_button();
+	// 标题绘制
+	draw_word(50, 230, 20, _T("宝石迷阵"));
+	FlushBatchDraw();
+}
+
+// 开始进程主循函数
+void game::carry_start()
+{
+	// 鼠标定义
+	ExMessage m;
+	int i, j, k, t, x[100], h, y, z[100];
+	// 时间初始化
+	start_t1 = clock();
+	start_t2 = clock();
+	// 结束时间初始化
+	start_endtime = 30000;
+	// 绘制
+	draw_scene_start();
+	// 普通模式
+	while (exit_start == 0)
+	{
+		if (peekmessage(&m, EM_MOUSE | EM_KEY))
+		{
+			// 左键单击判断
+			if (m.message == WM_LBUTTONDOWN)
+			{
+				// 单击在棋盘范围
+				if (m.x < 500 && m.x > 0 && m.y > 0 && m.y < 500)
+				{
+					// 判断是否点击了格子，有效的格子
+					for (i = 0; i < 1000; i++)
+					{
+						// 矩形
+						if (box[i].type != -1 && m.x > box[i].posx && m.y > box[i].posy && m.x < box[i].posx + 50 && m.y < box[i].posy + 50 && mod_shape == 0)
+						{
+							break;
+						}
+						// 六边形
+						else if (box[i].type != -1 && pow(double(m.x - box[i].posx - 25), 2) + pow(double(m.y - box[i].posy - 25), 2) < 626 && mod_shape == 1)
+						{
+							break;
+						}
+					}
+					// 选择参数为 0，则表示选择
+					if (selected_or_not == 0 && i < 1000 && box[i].type != 0)
+					{
+						selected_or_not = 1;
+						selected_boxnum = i;
+						// 选择绘制
+						k = selected_boxnum;
+						setfillstyle(BS_NULL);
+						setlinestyle(PS_SOLID, 2);
+						setlinecolor(LIGHTRED);
+						// 矩形
+						if (mod_shape == 0)
+						{
+							fillrectangle(box[k].posx + 1, box[k].posy + 1, box[k].posx + 49, box[k].posy + 49);
+
+						}
+						// 六边形
+						else if (mod_shape == 1)
+						{
+							fillcircle(box[k].posx + 25, box[k].posy + 25, 23);
+						}
+						setfillstyle(BS_SOLID);
+						FlushBatchDraw();
+					}
+					// 选择参数为 1，则根据不同模式的规则进行下一步
+					else if (selected_or_not == 1 && i < 1000 && box[i].type != 0)
+					{
+						selected_or_not = 0;
+						// 宝石迷阵
+						if (mod_start == 0)
+						{
+							// 点击同一个格子，表示取消选择
+							if (selected_boxnum == i && box[i].type != 8) {}
+							// 双击炸弹，或与炸弹交换位置
+							else if (box[i].type == 8 || box[selected_boxnum].type == 8)
+							{
+								// 交换参数
+								j = box[selected_boxnum].type;
+								box[selected_boxnum].type = box[i].type;
+								box[i].type = j;
+								// 引爆
+								flag = 1;
+								// 起爆点
+								if (box[i].type == 8) { eat[0].boxnum = i; }
+								else if (box[selected_boxnum].type == 8) { eat[0].boxnum = selected_boxnum; }
+								// 爆炸判断，确认爆炸范围
+								check_bomb();
+								// 爆炸
+								for (j = 0; j < 3; j++)
+								{
+									for (k = 0; k < flag; k++) { draw_piece(box[eat[k].boxnum].posx, box[eat[k].boxnum].posy, 0); }
+									FlushBatchDraw();
+									Sleep(200);
+									for (k = 0; k < flag; k++) { draw_piece(box[eat[k].boxnum].posx, box[eat[k].boxnum].posy, 8); }
+									FlushBatchDraw();
+									Sleep(350);
+								}
+								// 时间奖励
+								start_endtime += 3500;
+								// 得分奖励
+								start_point += (flag + 1);
+								goto A;
+							}
+							// 点击相邻格子，表示交换
+							else if (pow(double(box[selected_boxnum].posx - box[i].posx), 2) + pow(double(box[selected_boxnum].posy - box[i].posy), 2) <= 2501)
+							{
+								// 交换参数
+								j = box[selected_boxnum].type;
+								box[selected_boxnum].type = box[i].type;
+								box[i].type = j;
+
+								// 闪烁显示
+								draw_piece(box[i].posx, box[i].posy, 0);
+								draw_piece(box[selected_boxnum].posx, box[selected_boxnum].posy, 0);
+								FlushBatchDraw();
+								Sleep(200);
+								draw_piece(box[i].posx, box[i].posy, box[i].type);
+								draw_piece(box[selected_boxnum].posx, box[selected_boxnum].posy, box[selected_boxnum].type);
+								FlushBatchDraw();
+
+								// 判断能否交换
+								// 重置临时参数
+								for (k = 0; k < 500; k++) { eat[k].num = k; eat[k].boxnum = 0; }
+
+								flag = 0;
+								// 矩形判断
+								if (mod_shape == 0)
+								{
+									x[0] = check_square(selected_boxnum, box[selected_boxnum].type);
+									z[0] = selected_boxnum;
+									x[1] = check_square(i, box[i].type);
+									z[1] = i;
+								}
+								// 六边形
+								else if (mod_shape == 1)
+								{
+									x[0] = check_hexagon(selected_boxnum, box[selected_boxnum].type);
+									x[1] = check_hexagon(i, box[i].type);
+								}
+								// 能，则消除，生成新的
+								if (flag >= 2)
+								{
+									// 时间奖励
+									start_endtime += 3500;
+									// 得分奖励
+									start_point += (flag + 1);
+									// 闪烁显示
+									for (j = 0; j < 3; j++)
+									{
+										Sleep(350);
+										if (x[0] >= 2) { draw_piece(box[selected_boxnum].posx, box[selected_boxnum].posy, 0); }
+										if (x[1] >= 2) { draw_piece(box[i].posx, box[i].posy, 0); }
+										for (k = 0; k < flag; k++) { draw_piece(box[eat[k].boxnum].posx, box[eat[k].boxnum].posy, 0); }
+										FlushBatchDraw();
+										Sleep(200);
+										if (x[0] >= 2) { draw_piece(box[selected_boxnum].posx, box[selected_boxnum].posy, box[selected_boxnum].type); }
+										if (x[1] >= 2) { draw_piece(box[i].posx, box[i].posy, box[i].type); }
+										for (k = 0; k < flag; k++) { draw_piece(box[eat[k].boxnum].posx, box[eat[k].boxnum].posy, box[eat[k].boxnum].type); }
+										FlushBatchDraw();
+									}
+									// 交换格子参数变更
+									// 矩形
+									if (mod_shape == 0)
+									{
+										t = 0;
+										if (box[i].type == box[selected_boxnum].type) { t = 1; }
+										h = 2;
+										// 参数置零
+										for (k = 0; k < h; k++)
+										{
+											// 炸弹
+											if (x[k] >= 4)
+											{
+												box[z[k]].type = 8;
+											}
+											else if (x[k] >= 2)
+											{
+												box[z[k]].type = 0;
+											}
+										}
+										for (k = 0; k < flag; k++) { box[eat[k].boxnum].type = 0; }
+										if (t == 1 && flag >= 6) { box[i].type = 8; }
+									}
+									// 六边形
+									else if (mod_shape == 1)
+									{
+										if (x[0] >= 2) { creact_piece(selected_boxnum); }
+										if (x[1] >= 2) { creact_piece(i); }
+										// 临时存储格子参数变更
+										for (k = 0; k < flag; k++)
+										{
+											creact_piece(eat[k].boxnum);
+										}
+									}
+								A:
+									// 下落，下落后判断，循环至判定后无可消除项，注意，只有矩形有下落
+									flag = 2;
+									while (flag >= 2 && mod_shape == 0)
+									{
+										// 从下往上，空位由上方弥补，若上方也没有就空着，需要统计交换了的格子
+										h = 0;
+										for (k = size_shape - 1; k > 0; k--)
+										{
+											for (j = size_shape - 1; j >= 0; j--)
+											{
+												t = k * 10 + j;
+												// 空位
+												if (box[t].type == 0)
+												{
+													// 向上找
+													y = t;
+													while (y / size_shape > 0)
+													{
+														y -= 10;
+														// 找到则交换参数
+														if (box[y].type != 0)
+														{
+															box[t].type = box[y].type;
+															box[y].type = 0;
+															z[h] = t;
+															h++;
+															break;
+														}
+
+													}
+												}
+											}
+										}
+										// 填补，也需要统计，绘制
+										for (k = size_shape - 1; k >= 0; k--)
+										{
+											for (j = size_shape - 1; j >= 0; j--)
+											{
+												t = k * 10 + j;
+												// 空位
+												if (box[t].type == 0)
+												{
+													creact_piece(t);
+													z[h] = t;
+													h++;
+												}
+												// 绘制
+												draw_piece(box[t].posx, box[t].posy, box[t].type);
+											}
+										}
+										FlushBatchDraw();
+
+										// 根据统计分析
+										// 参数重置
+										flag = 0;
+										for (k = 0; k < h; k++)
+										{
+											x[k] = check_square(z[k], box[z[k]].type);
+										}
+										// 重新开始，最后将要消除的格子参数置零
+										if (flag >= 2)
+										{
+											// 时间奖励
+											start_endtime += 2000;
+											// 得分奖励
+											start_point += (flag + 1);
+											// 闪烁显示
+											for (j = 0; j < 3; j++)
+											{
+												Sleep(350);
+												for (k = 0; k < h; k++) { if (x[k] >= 2) { draw_piece(box[z[k]].posx, box[z[k]].posy, 0); } }
+												for (k = 0; k < flag; k++) { draw_piece(box[eat[k].boxnum].posx, box[eat[k].boxnum].posy, 0); }
+												FlushBatchDraw();
+												Sleep(200);
+												for (k = 0; k < h; k++) { if (x[k] >= 2) { draw_piece(box[z[k]].posx, box[z[k]].posy, box[z[k]].type); } }
+												for (k = 0; k < flag; k++) { draw_piece(box[eat[k].boxnum].posx, box[eat[k].boxnum].posy, box[eat[k].boxnum].type); }
+												FlushBatchDraw();
+											}
+											// 参数置零
+											for (k = 0; k < h; k++) { if (x[k] >= 2) { box[z[k]].type = 0; } }
+											for (k = 0; k < flag; k++) { box[eat[k].boxnum].type = 0; }
+										}
+									}
+
+									// 判断有无解，无解自动重置
+									// 对所有可交换对，进行交换，并分析
+									flag = 0;
+									while (flag == 0 && mod_shape == 0)
+									{
+										flag = 0;
+										for (i = 0; i < 100; i++)
+										{
+											// 有炸弹就算有解
+											if (box[i].type == 8)
+											{
+												flag = 2;
+												break;
+											}
+											else if (box_change[i].type == 1)
+											{
+												// 交换
+												j = box[box_change[i].boxnum1].type;
+												box[box_change[i].boxnum1].type = box[box_change[i].boxnum2].type;
+												box[box_change[i].boxnum2].type = j;
+												// 判断
+												t = check_square(box_change[i].boxnum1, box[box_change[i].boxnum1].type);
+												t = check_square(box_change[i].boxnum2, box[box_change[i].boxnum2].type);
+												// 换回来
+												j = box[box_change[i].boxnum1].type;
+												box[box_change[i].boxnum1].type = box[box_change[i].boxnum2].type;
+												box[box_change[i].boxnum2].type = j;
+												// 有解
+												if (flag >= 2) { break; }
+											}
+										}
+										// 无解
+										if (flag == 0)
+										{
+											// 整体闪烁
+											for (j = 0; j < 3; j++)
+											{
+												Sleep(350);
+												for (k = 0; k < 100; k++) { if (box[k].type != -1) { draw_piece(box[k].posx, box[k].posy, 0); } }
+												FlushBatchDraw();
+												Sleep(200);
+												for (k = 0; k < 100; k++) { if (box[k].type != -1) { draw_piece(box[k].posx, box[k].posy, box[k].type); } }
+												FlushBatchDraw();
+											}
+											// 重置，效果与刷新一致
+											// 开始进程初始化函数，主要是格子参数的初始化
+											initialization_start();
+											start_t2 = clock();
+											draw_scene_start();
+										}
+									}
+								}
+								// 不能，则换回来
+								else
+								{
+									j = box[selected_boxnum].type;
+									box[selected_boxnum].type = box[i].type;
+									box[i].type = j;
+
+									// 闪烁显示
+									Sleep(350);
+									draw_piece(box[i].posx, box[i].posy, 0);
+									draw_piece(box[selected_boxnum].posx, box[selected_boxnum].posy, 0);
+									FlushBatchDraw();
+									Sleep(200);
+									draw_piece(box[i].posx, box[i].posy, box[i].type);
+									draw_piece(box[selected_boxnum].posx, box[selected_boxnum].posy, box[selected_boxnum].type);
+									FlushBatchDraw();
+								}
+
+							}
+							// 点击其他格子，表示换选择
+							else
+							{
+								selected_or_not = 1;
+								// 选择绘制
+								k = selected_boxnum;
+								draw_piece(box[k].posx, box[k].posy, box[k].type);
+
+								selected_boxnum = i;
+								// 选择绘制
+								k = selected_boxnum;
+								setfillstyle(BS_NULL);
+								setlinestyle(PS_SOLID, 2);
+								setlinecolor(LIGHTRED);
+								// 矩形
+								if (mod_shape == 0)
+								{
+									fillrectangle(box[k].posx + 1, box[k].posy + 1, box[k].posx + 49, box[k].posy + 49);
+
+								}
+								// 六边形
+								else if (mod_shape == 1)
+								{
+									fillcircle(box[k].posx + 25, box[k].posy + 25, 23);
+								}
+								setfillstyle(BS_SOLID);
+								FlushBatchDraw();
+							}
+						}
+					}
+					flushmessage(EM_MOUSE);
+				}
+				else
+				{
+					// 判断是否点击了按钮
+					for (i = 0; i < num_button; i++)
+					{
+						if (m.x > boxm[i].posx1 && m.y > boxm[i].posy1 && m.x < boxm[i].posx2 && m.y < boxm[i].posy2 && boxm[i].type == 0)
+						{
+							break;
+						}
+					}
+
+					// 刷新按钮
+					if (i == 0)
+					{
+						// 开始进程初始化函数，主要是格子参数的初始化
+						initialization_start();
+						start_t2 = clock();
+						draw_scene_start();
+					}
+					// 返回按钮
+					else if (i == 1)
+					{
+						exit_start = 1;
+					}
+				}
+			}
+		}
+
+		// 时间更新，以及退出判断
+		start_t2 = clock();
+		if ((start_t2 - start_t1) % 500 == 0 && mod_start != 1)
+		{
+			// 绘制
+			draw_scene_start();
+		}
+		if ((start_t2 - start_t1) >= start_endtime && mod_start != 1)
+		{
+			// 退出提示
+			MessageBox(hOut, _T("记录下得分，结束啦"), _T("来自小豆子的提醒"), MB_OK);
+			exit_start = 1;
+		}
+	}
+}
+// 开始进程初始化函数
+void game::initialization_start()
+{
+	int i, j, k, t;
+	// 画布初始化
+	setbkcolor(WHITE);
+	cleardevice();
+
+	// 格子初始化
+	for (i = 0; i < 1000; i++)
+	{
+		box[i].type = -1;
+	}
+	// 矩形
+	if (mod_shape == 0)
+	{
+		// 二维参数定义
+		for (i = 0; i < size_shape; i++)
+		{
+			for (j = 0; j < size_shape; j++)
+			{
+				k = i * 10 + j;
+				box[k].boxnum = k;
+				box[k].i = i;
+				box[k].j = j;
+				box[k].posx = j * 50 + 250 - size_shape * 25;
+				box[k].posy = i * 50 + 250 - size_shape * 25;
+				box[k].type = 0;
+				if (mod_start == 0 || mod_start == 2)
+				{
+					creact_piece(k);
+				}
+
+			}
+		}
+
+		// 随机生成两个棋子
+		for (i = 0; i < 2; i++)
+		{
+			do
+			{
+				k = rand() % 1000;
+			} while (box[k].type < 0);
+
+			creact_piece(k);
+		}
+
+		// 判断有无解，无解自动重置
+
+		// 对所有可交换对，进行交换，并分析
+		flag = 0;
+		while (flag == 0)
+		{
+			flag = 0;
+			for (i = 0; i < 100; i++)
+			{
+				if (box_change[i].type == 1)
+				{
+					// 交换
+					j = box[box_change[i].boxnum1].type;
+					box[box_change[i].boxnum1].type = box[box_change[i].boxnum2].type;
+					box[box_change[i].boxnum2].type = j;
+					// 判断
+					t = check_square(box_change[i].boxnum1, box[box_change[i].boxnum1].type);
+					t = check_square(box_change[i].boxnum2, box[box_change[i].boxnum2].type);
+					// 换回来
+					j = box[box_change[i].boxnum1].type;
+					box[box_change[i].boxnum1].type = box[box_change[i].boxnum2].type;
+					box[box_change[i].boxnum2].type = j;
+					// 有解
+					if (flag == 0)
+						if (flag >= 2) { break; }
+				}
+			}
+			// 无解
+			if (flag == 0)
+			{
+				// 重置，效果与刷新一致
+				// 开始进程初始化函数，主要是格子参数的初始化
+				initialization_start();
+				start_t2 = clock();
+				draw_scene_start();
+			}
+		}
+	}
+	// 六边形
+	else if (mod_shape == 1)
+	{
+		// 三维参数定义
+		for (i = 0; i <= size_shape; i++)
+		{
+			for (j = 0; j <= size_shape; j++)
+			{
+				for (k = 0; k <= size_shape; k++)
+				{
+					if (i == 0 || j == 0 || k == 0)
+					{
+						t = i + j * 10 + k * 100;
+						box[t].boxnum = t;
+						box[t].posx = 200 + 43 * (j - k);
+						box[t].posy = 230 - 50 * i + 25 * (j + k);
+						box[t].i = i;
+						box[t].j = j;
+						box[t].k = k;
+						box[t].type = 0;
+						if (mod_start == 0 || mod_start == 2)
+						{
+							creact_piece(t);
+						}
+					}
+				}
+			}
+		}
+
+		// 随机生成两个棋子
+		for (i = 0; i < 2; i++)
+		{
+			do
+			{
+				k = rand() % 1000;
+			} while (box[k].type < 0);
+
+			creact_piece(k);
+		}
+	}
+
+	// 按钮设置初始化
+	num_button = 2;
+
+	boxm[0].posx1 = 500; boxm[0].posy1 = 20;	boxm[0].posx2 = 580; boxm[0].posy2 = 80;	boxm[0].text = _T("刷新"); boxm[0].type = 0;
+	boxm[1].posx1 = 500; boxm[1].posy1 = 420;	boxm[1].posx2 = 580; boxm[1].posy2 = 480;	boxm[1].text = _T("返回"); boxm[1].type = 0;
+
+	// 是否选择参数初始化
+	selected_or_not = 0;
+
+}
+// 开始进程绘制函数
+void game::draw_scene_start()
+{
+	int i, j, k, t;
+
+	// 绘制主背景
+	setbkcolor(WHITE);
+	cleardevice();
+
+	// 画格子
+	// 矩形
+	if (mod_shape == 0)
+	{
+		// 二维参数
+		for (i = 0; i < size_shape; i++)
+		{
+			for (j = 0; j < size_shape; j++)
+			{
+				k = i * 10 + j;
+				// 普通状态
+				draw_piece(box[k].posx, box[k].posy, box[k].type);
+				// 选中状态
+				if (selected_or_not == 1 && k == selected_boxnum)
+				{
+					setfillstyle(BS_NULL);
+					setlinestyle(PS_SOLID, 2);
+					setlinecolor(LIGHTRED);
+					fillrectangle(box[k].posx + 1, box[k].posy + 1, box[k].posx + 49, box[k].posy + 49);
+					setfillstyle(BS_SOLID);
+				}
+			}
+		}
+	}
+	// 六边形
+	else if (mod_shape == 1)
+	{
+		// 三维参数
+		for (i = 0; i <= size_shape; i++)
+		{
+			for (j = 0; j <= size_shape; j++)
+			{
+				for (k = 0; k <= size_shape; k++)
+				{
+					if (i == 0 || j == 0 || k == 0)
+					{
+						t = i + j * 10 + k * 100;
+						// 普通状态
+						draw_piece(box[t].posx, box[t].posy, box[t].type);
+						// 选中状态
+						if (selected_or_not == 1 && t == selected_boxnum)
+						{
+							setfillstyle(BS_NULL);
+							setlinestyle(PS_SOLID, 2);
+							setlinecolor(LIGHTRED);
+							fillcircle(box[t].posx + 25, box[t].posy + 25, 23);
+							setfillstyle(BS_SOLID);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 绘制按钮
+	draw_button();
+
+	// 绘制得分
+	TCHAR s[25];
+
+	// 时间更新，以及退出判断
+	if ((start_t2 - start_t1) % 500 == 0 && mod_start != 1)
+	{
+		// 时间
+		if (mod_start != 1)
+		{
+			draw_word(30, 505, 120, _T("时间："));
+			_stprintf_s(s, _T("%0.1d"), (start_endtime - (start_t2 - start_t1)) / 1000);
+			draw_word(30, 510, 160, s);
+			draw_word(30, 570, 160, _T("秒"));
+		}
+	}
+	// 得分
+	draw_word(30, 510, 220, _T("得分："));
+	_stprintf_s(s, _T("%0.1d"), start_point);
+	draw_word(30, 510, 260, s);
+
+	FlushBatchDraw();
+}
+
+
+// 文字绘制函数
+void game::draw_word(double size, int posx, int posy, LPTSTR text)
+{
+	int i, j;
+
+	// 参数设置，填充透明
+	setbkmode(TRANSPARENT);
+	settextstyle(int(size), int(size / 5 * 2), _T("Consolas"));
+
+	// 背景色的反色
+	settextcolor(BLACK);
+	// 范围绘制，构造阴影
+	for (i = posx - 3; i <= posx + 3; i++)
+	{
+		for (j = posy - 3; j <= posy + 3; j++)
+		{
+			outtextxy(i, j, text);
+		}
+	}
+
+	// 背景色
+	settextcolor(WHITE);
+	// 在阴影中绘制
+	outtextxy(posx, posy, text);
+
+	// 恢复填充
+	setbkmode(OPAQUE);
+	FlushBatchDraw();
+}
+// 按钮绘制函数
+void game::draw_button()
+{
+	// 根据颜色结构体设置参数
+	setlinecolor(RGB(125, 125, 125));
+	setfillcolor(RGB(88, 88, 88));
+	setbkcolor(RGB(88, 88, 88));
+	settextcolor(RGB(250, 250, 250));
+	settextstyle(30, 15, _T("Consolas"));
+	setlinestyle(PS_SOLID, 10);
+
+	// 根据按钮数量参数绘制
+	for (int i = 0; i < num_button; i++)
+	{
+		if (boxm[i].type == 0)
+		{
+			// 边框
+			fillroundrect(boxm[i].posx1, boxm[i].posy1, boxm[i].posx2, boxm[i].posy2, 25, 25);
+			// 文字
+			outtextxy(boxm[i].posx1 + (boxm[i].posx2 - boxm[i].posx1) / 2 - textwidth(boxm[i].text) / 2, boxm[i].posy1 + 15, boxm[i].text);
+		}
+	}
+	FlushBatchDraw();
+}
+// 棋子绘制函数
+void game::draw_piece(int posx, int posy, int type)
+{
+	int i;
+	setlinestyle(PS_SOLID, 1);
+	setlinecolor(RGB(238, 224, 253));
+	setfillcolor(RGB(217, 200, 248));
+
+	// 根据棋盘模式，画不同的格子
+	if (mod_shape == 0) { fillrectangle(posx, posy, posx + 50, posy + 50); }
+	else if (mod_shape == 1) { fillcircle(posx + 25, posy + 25, 25); }
+
+	if (type > 0)
+	{
+		// 绘制参数
+		settextstyle(60, 50, _T("Wingdings"));
+		setbkmode(TRANSPARENT);
+
+		// 阴影
+		settextcolor(RGB(106, 93, 118));
+		for (i = 0; i < 3; i++) { outtextxy(posx, posy - i, c[type]); }
+
+		// 侧面
+		settextcolor(color1[type]);
+		for (i = 3; i < 6; i++) { outtextxy(posx, posy - i, c[type]); }
+
+		// 正面
+		settextcolor(color2[type]);
+		for (i = 6; i < 7; i++) { outtextxy(posx, posy - i, c[type]); }
+
+		// 恢复填充
+		setbkmode(OPAQUE);
+	}
+}
+// 生成新棋子函数
+void game::creact_piece(int boxnum)
+{
+	box[boxnum].type = rand() % 7 + 1;
+}
+
+// 矩形判断函数
+int game::check_square(int x, int y)
+{
+	int j, flag1, flag2;
+	flag1 = 0; flag2 = 0;
+
+	// 左右记录参数
+	flag1 = 0;
+
+	// 向左
+	j = x;
+	while (j % 10 > 0)
+	{
+		j--;
+		// 移动后格子上的棋子与被分析格子上的棋子类型一致，则记录
+		if (box[j].type == y) { eat[flag + flag1].boxnum = j; flag1++; }
+		// 否则直接退出
+		else { break; }
+	}
+
+	// 向右
+	j = x;
+	while (j % 10 < size_shape)
+	{
+		j++;
+		// 移动后格子上的棋子与被分析格子上的棋子类型一致，则记录
+		if (box[j].type == y) { eat[flag + flag1].boxnum = j; flag1++; }
+		// 否则直接退出
+		else { break; }
+	}
+
+	if (flag1 >= 2 || mod_start == 1) {}
+	// 左右判断少于两个，则无法消除，清空临时存储
+	else { flag1 = 0; }
+
+	// 上下记录参数
+	flag2 = 0;
+
+	// 向上
+	j = x;
+	while (j / 10 > 0)
+	{
+		j -= 10;
+		// 移动后格子上的棋子与被分析格子上的棋子类型一致，则记录
+		if (box[j].type == y) { eat[flag + flag1 + flag2].boxnum = j; flag2++; }
+		// 否则直接退出
+		else { break; }
+	}
+
+	// 向下
+	j = x;
+	while (j / 10 < size_shape)
+	{
+		j += 10;
+		// 移动后格子上的棋子与被分析格子上的棋子类型一致，则记录
+		if (box[j].type == y) { eat[flag + flag1 + flag2].boxnum = j; flag2++; }
+		// 否则直接退出
+		else { break; }
+	}
+
+	if (flag2 >= 2 || mod_start == 1) {}
+	// 上下判断少于两个，则无法消除，清空临时存储
+	else { flag2 = 0; }
+
+	flag += (flag1 + flag2);
+	return flag1 + flag2;
+}
+// 六边形判断函数
+int game::check_hexagon(int x, int y)
+{
+
+	int i, j, k, t, flag1, flag2, flag3;
+	flag1 = 0; flag2 = 0; flag3 = 0;
+
+	// 正上正下记录参数
+	flag1 = 0;
+
+	// 向正上
+	i = box[x].boxnum % 10; j = (box[x].boxnum / 10) % 10; k = box[x].boxnum / 100;
+	while (i < size_shape)
+	{
+		// 向正上移动
+		if (j > 0 && k > 0) { j--; k--; }
+		else { i++; }t = i + j * 10 + k * 100;
+		// 移动后格子上的棋子与被分析格子上的棋子类型一致，则记录
+		if (box[t].type == y) { eat[flag + flag1].boxnum = t; flag1++; }
+		// 否则直接退出
+		else { break; }
+	}
+
+	// 向正下
+	i = box[x].boxnum % 10; j = (box[x].boxnum / 10) % 10; k = box[x].boxnum / 100;
+	while ((j < size_shape && k < size_shape) || i != 0)
+	{
+		// 向正下移动
+		if (i > 0) { i--; }
+		else { j++; k++; }t = i + j * 10 + k * 100;
+		// 移动后格子上的棋子与被分析格子上的棋子类型一致，则记录
+		if (box[t].type == y) { eat[flag + flag1].boxnum = t; flag1++; }
+		// 否则直接退出
+		else { break; }
+	}
+
+	if (flag1 >= 2 || mod_start == 1) {}
+	// 正上正下判断少于两个，则无法消除，清空临时存储
+	else { flag1 = 0; }
+
+	// 左上右下记录参数
+	flag2 = 0;
+
+	// 向左上
+	i = box[x].boxnum % 10; j = (box[x].boxnum / 10) % 10; k = box[x].boxnum / 100;
+	while ((i < size_shape && k < size_shape) || j != 0)
+	{
+		// 向左上移动
+		if (j > 0) { j--; }
+		else { i++; k++; }t = i + j * 10 + k * 100;
+		// 移动后格子上的棋子与被分析格子上的棋子类型一致，则记录
+		if (box[t].type == y) { eat[flag + flag1 + flag2].boxnum = t; flag2++; }
+		// 否则直接退出
+		else { break; }
+	}
+
+	// 向右下
+	i = box[x].boxnum % 10; j = (box[x].boxnum / 10) % 10; k = box[x].boxnum / 100;
+	while (j < size_shape)
+	{
+		// 向右下移动
+		if (i > 0 && k > 0) { i--; k--; }
+		else { j++; }t = i + j * 10 + k * 100;
+		// 移动后格子上的棋子与被分析格子上的棋子类型一致，则记录
+		if (box[t].type == y) { eat[flag + flag1 + flag2].boxnum = t; flag2++; }
+		// 否则直接退出
+		else { break; }
+	}
+
+	if (flag2 >= 2 || mod_start == 1) {}
+	// 左上右下判断少于两个，则无法消除，清空临时存储
+	else { flag2 = 0; }
+
+	// 右上左下记录参数
+	flag3 = 0;
+
+	// 向右上
+	i = box[x].boxnum % 10; j = (box[x].boxnum / 10) % 10; k = box[x].boxnum / 100;
+	while ((i < size_shape && j < size_shape) || k != 0)
+	{
+		// 向右上移动
+		if (k > 0) { k--; }
+		else { i++; j++; }t = i + j * 10 + k * 100;
+		// 移动后格子上的棋子与被分析格子上的棋子类型一致，则记录
+		if (box[t].type == y) { eat[flag + flag1 + flag2 + flag3].boxnum = t; flag3++; }
+		// 否则直接退出
+		else { break; }
+	}
+
+	// 向左下
+	i = box[x].boxnum % 10; j = (box[x].boxnum / 10) % 10; k = box[x].boxnum / 100;
+	while (k < size_shape)
+	{
+		// 向左下移动
+		if (i > 0 && j > 0) { i--; j--; }
+		else { k++; }t = i + j * 10 + k * 100;
+		// 移动后格子上的棋子与被分析格子上的棋子类型一致，则记录
+		if (box[t].type == y) { eat[flag + flag1 + flag2 + flag3].boxnum = t; flag3++; }
+		// 否则直接退出
+		else { break; }
+	}
+
+	if (flag3 >= 2 || mod_start == 1) {}
+	// 右上左下判断少于两个，则无法消除，清空临时存储
+	else { flag3 = 0; }
+
+	flag += (flag1 + flag2 + flag3);
+	return flag1 + flag2 + flag3;
+}
+// 炸弹判断函数
+void game::check_bomb()
+{
+	int i, j, k, t;
+	// 范围判断
+	for (t = 0; t < flag; t++)
+	{
+		// 如果原范围内有别的炸弹，加大范围，连环引爆
+		if (box[eat[t].boxnum].type == 8)
+		{
+			// 炸弹自己炸没了
+			box[eat[t].boxnum].type = 0;
+			// 九宫格判断
+			for (i = (box[eat[t].boxnum].i == 0 ? box[eat[t].boxnum].i : box[eat[t].boxnum].i - 1);
+				i <= (box[eat[t].boxnum].i == size_shape - 1 ? box[eat[t].boxnum].i : box[eat[t].boxnum].i + 1);
+				i++)
+			{
+				for (j = (box[eat[t].boxnum].j == 0 ? box[eat[t].boxnum].j : box[eat[t].boxnum].j - 1);
+					j <= (box[eat[t].boxnum].j == size_shape - 1 ? box[eat[t].boxnum].j : box[eat[t].boxnum].j + 1);
+					j++)
+				{
+					k = i * 10 + j;
+					eat[flag].boxnum = k;
+					if (box[k].type == 8) {}
+					else { box[k].type = 0; }
+					flag++;
+				}
+			}
+		}
+	}
+}
+
+
